@@ -82,10 +82,11 @@ func (cn *Coin) access(data map[string]interface{}) (err error) {
 		err = errors.New("params count error")
 		return
 	}
-	if cn.client == nil {
-		err = errors.New("http client error")
-		return
-	}
+	// if cn.client == nil {
+	// 	err = errors.New("http client error")
+	// 	return
+	// }
+	cn.client = &http.Client{}
 	cn.id++
 	data["id"] = cn.id
 	cn.LastError = nil
