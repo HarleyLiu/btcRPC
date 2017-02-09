@@ -63,6 +63,7 @@ func NewCoin(coinUser, coinPasswd, coinHost, coinURL string, coinPort int) (cn *
 	cn.responseData = make(map[string]interface{})
 	//first access
 	if _, err = cn.Call("getinfo", nil); err != nil {
+		println("first call is error")
 		return nil, err
 	}
 	if cn.Status != http.StatusOK || cn.LastError != nil {
