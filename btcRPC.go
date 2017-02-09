@@ -1,0 +1,145 @@
+package btcRPC
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"io/ioutil"
+	"net/http"
+	"strconv"
+	"time"
+)
+
+// CoinDefaultHost   默认的coin地址
+const CoinDefaultHost string = "localhost"
+
+//CoinDefaultPort   coin默认的端口
+const CoinDefaultPort int = 8332
+
+//CoinDefaultProto  coin默认使用的协议
+const CoinDefaultProto string = "http"
+
+//RPCTimeOut default timeout(second)
+const RPCTimeOut = 3
+
+//Coin RPC struct
+type Coin struct {
+	// Configuration options
+	username    string
+	password    string
+	proto       string
+	host        string
+	port        int
+	url         string
+	certificate string
+	// Information and debugging
+	Status    int
+	LastError error
+	// rawResponse string
+	responseData map[string]interface{}
+	id           int
+	client       *http.Client
+}
+
+//NewCoin   create a new RPC instance
+func NewCoin(coinUser, coinPasswd, coinHost, coinURL string, coinPort int) (cn *Coin, err error) {
+	cn = &Coin{
+		username: coinUser,
+		password: coinPasswd,
+		host:     coinHost,
+		port:     coinPort,
+		url:      coinURL,
+		proto:    CoinDefaultProto,
+	}
+	if len(coinHost) == 0 {
+		cn.host = CoinDefaultHost
+	}
+	if coinPort < 0 || coinPort > 65535 {
+		cn.port = CoinDefaultPort
+	}
+	cn.client = &http.Client{}
+	cn.client.Timeout = time.Duration(RPCTimeOut) * time.Second
+	cn.client.Transport = &http.Transport{}
+	cn.responseData = make(map[string]interface{})
+	//first access
+	if _, err = cn.Call("getinfo", nil); err != nil {
+		return nil, err
+	}
+	if cn.Status != http.StatusOK || cn.LastError != nil {
+		return nil, cn.LastError
+	}
+	return
+}
+
+//SetSSL    设置certificate
+func (cn *Coin) SetSSL(certificate string) {
+	cn.proto = "https"
+	cn.certificate = certificate
+}
+
+func (cn *Coin) access(data map[string]interface{}) (err error) {
+	if len(data) != 2 {
+		err = errors.New("params count error")
+		return
+	}
+	if cn.client == nil {
+		err = errors.New("http client error")
+		return
+	}
+	cn.id++
+	data["id"] = cn.id
+	cn.LastError = nil
+	cn.responseData = nil
+	cn.Status = http.StatusOK
+	var (
+		jbuf, body []byte
+		req        *http.Request
+		resp       *http.Response
+	)
+	if jbuf, err = json.Marshal(data); err != nil {
+		return
+	}
+
+	addr := cn.proto + "://" + cn.username + ":" + cn.password + "@" + cn.host + ":" + strconv.Itoa(cn.port) + "/" + cn.url
+	if req, err = http.NewRequest("POST", addr, bytes.NewReader(jbuf)); err != nil {
+		cn.LastError = err
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	//这里应该要设置下ssl
+	if resp, err = cn.client.Do(req); err != nil {
+		cn.LastError = err
+		return
+	}
+	cn.Status = resp.StatusCode
+	defer resp.Body.Close()
+	if body, err = ioutil.ReadAll(resp.Body); err != nil {
+		cn.LastError = err
+		return
+	}
+	if len(body) == 0 {
+		err = errors.New("response data is empty")
+		return
+	}
+	//解码返回内容
+	if err = json.Unmarshal(body, &cn.responseData); err != nil {
+		cn.LastError = err
+		return
+	}
+	return
+}
+
+//Call run RPC command
+func (cn *Coin) Call(method string, args ...interface{}) (data map[string]interface{}, err error) {
+	if method == "" {
+		err = errors.New("method is not set")
+		return
+	}
+	requestData := make(map[string]interface{})
+	requestData["method"] = method
+	requestData["params"] = args
+	if err = cn.access(requestData); err == nil {
+		data = cn.responseData
+	}
+	return
+}
