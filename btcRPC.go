@@ -86,7 +86,7 @@ func (cn *Coin) access(data map[string]interface{}) (err error) {
 	// 	err = errors.New("http client error")
 	// 	return
 	// }
-	cn.client = &http.Client{}
+	// cn.client = &http.Client{}
 	cn.id++
 	data["id"] = cn.id
 	cn.LastError = nil
