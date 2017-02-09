@@ -10,17 +10,17 @@ import (
 	"time"
 )
 
-// CoinDefaultHost   默认的coin地址
+// CoinDefaultHost   default coin address
 const CoinDefaultHost string = "localhost"
 
-//CoinDefaultPort   coin默认的端口
+//CoinDefaultPort   default coin port
 const CoinDefaultPort int = 8332
 
-//CoinDefaultProto  coin默认使用的协议
+//CoinDefaultProto  default coin protp
 const CoinDefaultProto string = "http"
 
 //RPCTimeOut default timeout(second)
-const RPCTimeOut = 3
+const RPCTimeOut = 5
 
 //Coin RPC struct
 type Coin struct {
@@ -62,17 +62,16 @@ func NewCoin(coinUser, coinPasswd, coinHost, coinURL string, coinPort int) (cn *
 	cn.client.Transport = &http.Transport{}
 	cn.responseData = make(map[string]interface{})
 	//first access
-	if _, err = cn.Call("getinfo", nil); err != nil {
-		println("first call is error")
+	if _, err = cn.Call("getinfo"); err != nil {
 		return nil, err
 	}
 	if cn.Status != http.StatusOK || cn.LastError != nil {
 		return nil, cn.LastError
 	}
-	return
+	return cn, nil
 }
 
-//SetSSL    设置certificate
+//SetSSL    setup certificate
 func (cn *Coin) SetSSL(certificate string) {
 	cn.proto = "https"
 	cn.certificate = certificate
@@ -107,12 +106,16 @@ func (cn *Coin) access(data map[string]interface{}) (err error) {
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	//这里应该要设置下ssl
+	//todo: setup ssl
 	if resp, err = cn.client.Do(req); err != nil {
 		cn.LastError = err
 		return
 	}
 	cn.Status = resp.StatusCode
+	if cn.Status != http.StatusOK {
+		err = errors.New(resp.Status)
+		return
+	}
 	defer resp.Body.Close()
 	if body, err = ioutil.ReadAll(resp.Body); err != nil {
 		cn.LastError = err
@@ -122,7 +125,7 @@ func (cn *Coin) access(data map[string]interface{}) (err error) {
 		err = errors.New("response data is empty")
 		return
 	}
-	//解码返回内容
+	//decode
 	if err = json.Unmarshal(body, &cn.responseData); err != nil {
 		cn.LastError = err
 		return
