@@ -36,7 +36,7 @@ type Coin struct {
 	Status    int
 	LastError error
 	// rawResponse string
-	responseData map[string]interface{}
+	responseData []byte
 	id           int
 	client       *http.Client
 }
@@ -60,7 +60,6 @@ func NewCoin(coinUser, coinPasswd, coinHost, coinURL string, coinPort int) (cn *
 	cn.client = &http.Client{}
 	cn.client.Timeout = time.Duration(RPCTimeOut) * time.Second
 	cn.client.Transport = &http.Transport{}
-	cn.responseData = make(map[string]interface{})
 	//first access
 	if _, err = cn.Call("getinfo"); err != nil {
 		return nil, err
@@ -92,9 +91,9 @@ func (cn *Coin) access(data map[string]interface{}) (err error) {
 	cn.responseData = nil
 	cn.Status = http.StatusOK
 	var (
-		jbuf, body []byte
-		req        *http.Request
-		resp       *http.Response
+		jbuf []byte
+		req  *http.Request
+		resp *http.Response
 	)
 	if jbuf, err = json.Marshal(data); err != nil {
 		return
@@ -117,24 +116,19 @@ func (cn *Coin) access(data map[string]interface{}) (err error) {
 		return
 	}
 	defer resp.Body.Close()
-	if body, err = ioutil.ReadAll(resp.Body); err != nil {
+	if cn.responseData, err = ioutil.ReadAll(resp.Body); err != nil {
 		cn.LastError = err
 		return
 	}
-	if len(body) == 0 {
+	if len(cn.responseData) == 0 {
 		err = errors.New("response data is empty")
-		return
-	}
-	//decode
-	if err = json.Unmarshal(body, &cn.responseData); err != nil {
-		cn.LastError = err
 		return
 	}
 	return
 }
 
 //Call run RPC command
-func (cn *Coin) Call(method string, args ...interface{}) (data map[string]interface{}, err error) {
+func (cn *Coin) Call(method string, args ...interface{}) (data []byte, err error) {
 	if method == "" {
 		err = errors.New("method is not set")
 		return
